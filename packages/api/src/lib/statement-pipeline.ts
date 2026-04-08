@@ -78,6 +78,7 @@ export async function runStatementPipeline(
     const result = await extractPdfText(buffer);
     rawText = result.text;
     pages = result.pages;
+    (statement as any)._extractionMethod = result.method;
   } catch (err) {
     const message =
       err instanceof PipelineError
@@ -97,6 +98,7 @@ export async function runStatementPipeline(
   await logStep(statementId, "extract_text", "completed", {
     pages,
     textLength: rawText.length,
+    method: (statement as any)._extractionMethod ?? "unknown",
   }, Date.now() - extractStart);
 
   // ─── STEP 2: INTERPRET WITH AI ──────────────────────────
