@@ -50,7 +50,8 @@ export default function LoginPage() {
       <Card className="w-full max-w-md relative glass-card shadow-soft">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex justify-center">
-            <h1 className="text-2xl font-bold gradient-text font-display">IsyAdmin</h1>
+            <img src="/logo.svg" alt="IsyAdmin" className="h-10 dark:hidden" />
+            <img src="/logo-white.svg" alt="IsyAdmin" className="h-10 hidden dark:block" />
           </div>
           <CardDescription className="text-sm">
             Tu dinero, claro y simple

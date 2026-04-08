@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 500 500">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: url(#Degradado_sin_nombre_101);
+      }
+
+      .st1 {
+        fill: url(#Degradado_sin_nombre_102);
+      }
+
+      .st2 {
+        fill: url(#Degradado_sin_nombre_105);
+      }
+
+      .st3 {
+        fill: url(#Degradado_sin_nombre_103);
+      }
+
+      .st4 {
+        fill: url(#Degradado_sin_nombre_106);
+      }
+
+      .st5 {
+        fill: url(#Degradado_sin_nombre_104);
+      }
+
+      .st6 {
+        fill: url(#Degradado_sin_nombre_10);
+      }
+    </style>
+    <linearGradient id="Degradado_sin_nombre_10" data-name="Degradado sin nombre 10" x1="36.47" y1="112.3" x2="452.6" y2="112.3" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3888c8"/>
+      <stop offset="1" stop-color="#11aa7e"/>
+    </linearGradient>
+    <linearGradient id="Degradado_sin_nombre_101" data-name="Degradado sin nombre 10" x1="36.47" y1="112.3" x2="452.6" y2="112.3" xlink:href="#Degradado_sin_nombre_10"/>
+    <linearGradient id="Degradado_sin_nombre_102" data-name="Degradado sin nombre 10" x1="36.47" y1="388.47" x2="452.6" y2="388.47" xlink:href="#Degradado_sin_nombre_10"/>
+    <linearGradient id="Degradado_sin_nombre_103" data-name="Degradado sin nombre 10" x1="36.47" y1="388.47" x2="452.6" y2="388.47" xlink:href="#Degradado_sin_nombre_10"/>
+    <linearGradient id="Degradado_sin_nombre_104" data-name="Degradado sin nombre 10" x1="36.47" y1="250.39" x2="452.6" y2="250.39" xlink:href="#Degradado_sin_nombre_10"/>
+    <linearGradient id="Degradado_sin_nombre_105" data-name="Degradado sin nombre 10" x1="36.47" y1="319.43" x2="452.6" y2="319.43" xlink:href="#Degradado_sin_nombre_10"/>
+    <linearGradient id="Degradado_sin_nombre_106" data-name="Degradado sin nombre 10" x1="36.47" y1="250.39" x2="452.6" y2="250.39" gradientTransform="translate(575.22 -74.45) rotate(90)" xlink:href="#Degradado_sin_nombre_10"/>
+  </defs>
+  <rect class="st6" x="39.31" y="51.28" width="122.05" height="122.05" rx="61.03" ry="61.03"/>
+  <rect class="st0" x="263.81" y="51.28" width="122.05" height="122.05" rx="61.03" ry="61.03"/>
+  <rect class="st1" x="338.64" y="327.45" width="122.05" height="122.05" rx="61.03" ry="61.03"/>
+  <rect class="st3" x="188.97" y="327.45" width="122.05" height="122.05" rx="61.03" ry="61.03"/>
+  <rect class="st5" x="39.31" y="189.36" width="122.05" height="122.05" rx="61.03" ry="61.03"/>
+  <rect class="st2" x="39.31" y="189.36" width="122.05" height="260.14" rx="61.03" ry="61.03"/>
+  <rect class="st4" x="263.81" y="114.53" width="122.05" height="271.72" rx="61.03" ry="61.03" transform="translate(74.45 575.22) rotate(-90)"/>
+</svg>

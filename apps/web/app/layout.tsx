@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   },
   description:
     "Administra tus finanzas personales y de negocio de forma simple, visual e inteligente.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

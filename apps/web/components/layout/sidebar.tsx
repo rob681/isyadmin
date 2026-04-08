@@ -54,8 +54,9 @@ function SidebarContent() {
     <div className="flex flex-col h-full bg-[hsl(var(--sidebar))]">
       {/* Logo */}
       <div className="p-6 pb-4">
-        <h1 className="text-xl font-bold gradient-text font-display">IsyAdmin</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Tu dinero, claro y simple</p>
+        <img src="/logo.svg" alt="IsyAdmin" className="h-8 dark:hidden" />
+        <img src="/logo-white.svg" alt="IsyAdmin" className="h-8 hidden dark:block" />
+        <p className="text-xs text-muted-foreground mt-1.5">Tu dinero, claro y simple</p>
       </div>
 
       {/* Quick action */}
@@ -186,7 +187,8 @@ export function MobileHeader() {
       <button type="button" onClick={openMobile} className="p-2 -ml-2">
         <Menu className="h-5 w-5" />
       </button>
-      <h1 className="text-lg font-bold gradient-text font-display">IsyAdmin</h1>
+      <img src="/logo.svg" alt="IsyAdmin" className="h-6 dark:hidden" />
+      <img src="/logo-white.svg" alt="IsyAdmin" className="h-6 hidden dark:block" />
       <div className="w-9" /> {/* Spacer for centering */}
     </header>
   );
