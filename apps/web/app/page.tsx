@@ -82,17 +82,243 @@ const banks = [
   "BanCoppel",
 ];
 
+/* ── Mockup Components ── */
+
+function DashboardMockup() {
+  return (
+    <div className="rounded-2xl border bg-card shadow-2xl shadow-primary/10 overflow-hidden max-w-4xl mx-auto">
+      {/* Browser chrome */}
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/50 border-b">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-400" />
+          <div className="w-3 h-3 rounded-full bg-yellow-400" />
+          <div className="w-3 h-3 rounded-full bg-green-400" />
+        </div>
+        <div className="flex-1 flex justify-center">
+          <div className="px-4 py-1 rounded-md bg-background text-xs text-muted-foreground font-mono">
+            isyadmin-web.vercel.app/dashboard
+          </div>
+        </div>
+      </div>
+
+      {/* Dashboard content */}
+      <div className="flex">
+        {/* Mini sidebar */}
+        <div className="hidden sm:flex w-44 flex-col border-r bg-muted/30 p-3 gap-1">
+          <div className="flex items-center gap-2 px-2 py-1.5 mb-3">
+            <img src="/icon.svg" alt="" className="h-5" />
+            <span className="text-xs font-bold gradient-text">IsyAdmin</span>
+          </div>
+          {["Dashboard", "Mis cuentas", "Movimientos", "Facturas", "Estados de cuenta"].map((item, i) => (
+            <div
+              key={item}
+              className={`px-2 py-1.5 rounded-lg text-[11px] ${
+                i === 0
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {item}
+            </div>
+          ))}
+        </div>
+
+        {/* Main area */}
+        <div className="flex-1 p-4 sm:p-5 space-y-4">
+          {/* Balance cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 p-3 text-white">
+              <p className="text-[10px] opacity-80">Ingresos</p>
+              <p className="text-lg sm:text-xl font-bold">$45,200</p>
+              <p className="text-[10px] opacity-70 mt-0.5">+12% vs mes anterior</p>
+            </div>
+            <div className="rounded-xl border bg-card p-3">
+              <p className="text-[10px] text-muted-foreground">Egresos</p>
+              <p className="text-lg sm:text-xl font-bold text-foreground">$32,850</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">-5% vs mes anterior</p>
+            </div>
+            <div className="rounded-xl border bg-card p-3">
+              <p className="text-[10px] text-muted-foreground">Balance</p>
+              <p className="text-lg sm:text-xl font-bold text-green-600">$12,350</p>
+              <p className="text-[10px] text-green-600 mt-0.5">Positivo</p>
+            </div>
+          </div>
+
+          {/* Accounts + Movements */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            {/* Accounts */}
+            <div className="rounded-xl border p-3 space-y-2">
+              <p className="text-xs font-semibold">Mis cuentas</p>
+              {[
+                { bank: "BBVA", balance: "$18,450", color: "bg-blue-500" },
+                { bank: "Nu", balance: "$6,200", color: "bg-purple-500" },
+                { bank: "Banorte", balance: "$3,700", color: "bg-red-500" },
+              ].map((acc) => (
+                <div key={acc.bank} className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${acc.color}`} />
+                    <span className="text-[11px]">{acc.bank}</span>
+                  </div>
+                  <span className="text-[11px] font-medium">{acc.balance}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Recent movements */}
+            <div className="rounded-xl border p-3 space-y-2">
+              <p className="text-xs font-semibold">Últimos movimientos</p>
+              {[
+                { name: "Spotify", amount: "-$169", type: "sub", scope: "P" },
+                { name: "Uber Eats", amount: "-$285", type: "cargo", scope: "P" },
+                { name: "Transferencia recibida", amount: "+$15,000", type: "abono", scope: "N" },
+                { name: "Amazon Prime", amount: "-$99", type: "sub", scope: "P" },
+              ].map((m, i) => (
+                <div key={i} className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[8px] ${
+                      m.type === "abono" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+                    }`}>
+                      {m.type === "abono" ? "+" : "-"}
+                    </div>
+                    <div>
+                      <span className="text-[11px]">{m.name}</span>
+                      {m.type === "sub" && (
+                        <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-blue-100 text-blue-600">Recurrente</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-[11px] font-medium ${m.type === "abono" ? "text-green-600" : ""}`}>
+                      {m.amount}
+                    </span>
+                    <span className={`ml-1 text-[8px] px-1 py-0.5 rounded ${
+                      m.scope === "N" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"
+                    }`}>
+                      {m.scope === "N" ? "Negocio" : "Personal"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PdfUploadMockup() {
+  return (
+    <div className="rounded-2xl border bg-card shadow-xl overflow-hidden">
+      <div className="p-5 space-y-4">
+        <div className="text-center">
+          <p className="text-sm font-semibold mb-1">Sube tu estado de cuenta</p>
+          <p className="text-xs text-muted-foreground">Arrastra o selecciona un PDF</p>
+        </div>
+
+        {/* Dropzone */}
+        <div className="border-2 border-dashed border-primary/30 rounded-xl p-6 text-center bg-primary/5">
+          <div className="text-3xl mb-2">📄</div>
+          <p className="text-xs text-primary font-medium">BBVA_Estado_Marzo_2026.pdf</p>
+          <p className="text-[10px] text-muted-foreground mt-1">2.4 MB</p>
+          <div className="mt-3 h-1.5 rounded-full bg-primary/20 overflow-hidden">
+            <div className="h-full rounded-full gradient-primary w-[85%]" />
+          </div>
+          <p className="text-[10px] text-primary mt-1">Procesando con IA...</p>
+        </div>
+
+        {/* Extracted preview */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-[10px] text-green-600">
+            <span>&#10003;</span> Banco detectado: BBVA
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-green-600">
+            <span>&#10003;</span> Periodo: 01 Mar - 31 Mar 2026
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-green-600">
+            <span>&#10003;</span> 47 movimientos encontrados
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-green-600">
+            <span>&#10003;</span> 12 suscripciones detectadas
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClassificationMockup() {
+  return (
+    <div className="rounded-2xl border bg-card shadow-xl overflow-hidden">
+      <div className="p-5 space-y-3">
+        <p className="text-sm font-semibold">Revisión inteligente</p>
+
+        {/* Table header */}
+        <div className="grid grid-cols-[1fr_70px_70px_50px] gap-2 text-[10px] font-medium text-muted-foreground border-b pb-2">
+          <span>Descripción</span>
+          <span>Monto</span>
+          <span>Categoría</span>
+          <span>Ámbito</span>
+        </div>
+
+        {/* Rows */}
+        {[
+          { desc: "SPOTIFY MEXICO", amount: "$169", cat: "Entretenimiento", scope: "Personal", conf: 95 },
+          { desc: "AMAZON MX *MKTPL", amount: "$1,299", cat: "Compras", scope: "Negocio", conf: 88 },
+          { desc: "UBER TRIP", amount: "$85", cat: "Transporte", scope: "Personal", conf: 92 },
+          { desc: "GOOGLE *CLOUD", amount: "$450", cat: "Software", scope: "Negocio", conf: 97 },
+          { desc: "OXXO GAS", amount: "$800", cat: "Gasolina", scope: "Personal", conf: 90 },
+        ].map((row, i) => (
+          <div
+            key={i}
+            className="grid grid-cols-[1fr_70px_70px_50px] gap-2 items-center text-[11px] py-1.5 border-b border-border/50"
+          >
+            <div>
+              <span className="font-medium">{row.desc}</span>
+              {row.conf >= 95 && (
+                <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-green-100 text-green-700">{row.conf}%</span>
+              )}
+              {row.conf >= 85 && row.conf < 95 && (
+                <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-yellow-100 text-yellow-700">{row.conf}%</span>
+              )}
+              {row.cat === "Software" && (
+                <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-blue-100 text-blue-700">Deducible</span>
+              )}
+            </div>
+            <span className="text-red-600 font-medium">-{row.amount}</span>
+            <span className="px-1.5 py-0.5 rounded-md bg-muted text-[10px]">{row.cat}</span>
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] text-center ${
+              row.scope === "Negocio"
+                ? "bg-amber-100 text-amber-700"
+                : "bg-gray-100 text-gray-600"
+            }`}>
+              {row.scope === "Negocio" ? "Neg" : "Per"}
+            </span>
+          </div>
+        ))}
+
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-[10px] text-muted-foreground">5 de 47 movimientos</span>
+          <div className="px-3 py-1.5 rounded-lg gradient-primary text-white text-[10px] font-medium">
+            Confirmar todos
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
       <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <img src="/logo.svg" alt="IsyAdmin" className="h-7 dark:hidden" />
+          <img src="/logo.svg" alt="IsyAdmin" className="h-9 dark:hidden" />
           <img
             src="/logo-white.svg"
             alt="IsyAdmin"
-            className="h-7 hidden dark:block"
+            className="h-9 hidden dark:block"
           />
           <div className="flex items-center gap-3">
             <Link
@@ -118,7 +344,7 @@ export default function LandingPage() {
           <div className="absolute -bottom-1/3 -right-1/4 w-[700px] h-[700px] rounded-full bg-[hsl(172,66%,50%)] opacity-[0.06] blur-[120px]" />
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-24 sm:pt-28 sm:pb-32 text-center relative">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-8 sm:pt-24 sm:pb-12 text-center relative">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium mb-6">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             Disponible para bancos mexicanos
@@ -153,6 +379,11 @@ export default function LandingPage() {
           <p className="mt-4 text-xs text-muted-foreground">
             Sin tarjeta de crédito. Listo en 30 segundos.
           </p>
+        </div>
+
+        {/* Hero Mockup */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 sm:pb-24 relative">
+          <DashboardMockup />
         </div>
       </section>
 
@@ -208,7 +439,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* How it works */}
+      {/* How it works — with visual mockups */}
       <section id="como-funciona" className="py-20 sm:py-28 bg-accent/30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
@@ -220,21 +451,75 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {steps.map((step, i) => (
-              <div key={step.step} className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full gradient-primary text-white text-lg font-bold mb-4">
-                  {step.step}
-                </div>
-                {i < steps.length - 1 && (
-                  <div className="hidden lg:block absolute top-6 left-[calc(50%+24px)] w-[calc(100%-48px)] h-px bg-border" />
-                )}
-                <h3 className="text-base font-semibold mb-2">{step.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {step.description}
-                </p>
+          {/* Step 1 — Upload */}
+          <div className="grid lg:grid-cols-2 gap-10 items-center mb-20">
+            <div className="order-2 lg:order-1">
+              <PdfUploadMockup />
+            </div>
+            <div className="order-1 lg:order-2 space-y-4">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full gradient-primary text-white text-sm font-bold">
+                1
               </div>
-            ))}
+              <h3 className="text-2xl font-bold font-display">Sube el PDF de tu banco</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Arrastra el estado de cuenta en PDF de cualquier banco mexicano.
+                La inteligencia artificial extrae el texto, identifica el banco,
+                el periodo, y encuentra cada movimiento automáticamente.
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">&#10003;</span> BBVA, Citibanamex, Banorte, Nu y más
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">&#10003;</span> Detecta suscripciones y MSI
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">&#10003;</span> Procesamiento en segundos
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Step 2 — Classify */}
+          <div className="grid lg:grid-cols-2 gap-10 items-center mb-20">
+            <div className="space-y-4">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full gradient-primary text-white text-sm font-bold">
+                2
+              </div>
+              <h3 className="text-2xl font-bold font-display">Revisa la clasificación</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                La IA clasifica cada movimiento con su categoría, tipo y nivel de confianza.
+                Decide si cada gasto es personal o de negocio, y detecta automáticamente
+                los gastos deducibles.
+              </p>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">&#10003;</span> Clasificación con score de confianza
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">&#10003;</span> Toggle Personal / Negocio por movimiento
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">&#10003;</span> Detección automática de deducibles
+                </li>
+              </ul>
+            </div>
+            <div>
+              <ClassificationMockup />
+            </div>
+          </div>
+
+          {/* Step 3 — Dashboard */}
+          <div className="text-center space-y-4">
+            <div className="inline-flex items-center justify-center w-10 h-10 rounded-full gradient-primary text-white text-sm font-bold">
+              3
+            </div>
+            <h3 className="text-2xl font-bold font-display">Toma el control</h3>
+            <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
+              Tu dashboard muestra ingresos, egresos, balance por cuenta,
+              movimientos recurrentes y alertas inteligentes. Todo en un solo lugar,
+              actualizado con cada PDF que subas.
+            </p>
           </div>
         </div>
       </section>
@@ -316,11 +601,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img
-                src="/icon.svg"
-                alt="IsyAdmin"
-                className="h-6"
-              />
+              <img src="/icon.svg" alt="IsyAdmin" className="h-6" />
               <span className="text-sm text-muted-foreground">
                 IsyAdmin &copy; {new Date().getFullYear()}
               </span>
