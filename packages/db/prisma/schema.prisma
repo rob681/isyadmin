@@ -1,0 +1,545 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  output        = "../../../apps/web/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// ENUMS (prefixed to avoid collisions with IsyTask)
+// ──────────────────────────────────────────────
+
+enum UserType {
+  PERSONAL
+  EMPRENDEDOR
+  EMPRESA
+
+  @@map("iadm_user_type")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MIEMBRO
+
+  @@map("iadm_role")
+}
+
+enum StatementStatus {
+  UPLOADED
+  EXTRACTING
+  INTERPRETING
+  VALIDATING
+  REVIEW
+  CONFIRMED
+  FAILED
+
+  @@map("iadm_statement_status")
+}
+
+enum MovementType {
+  CARGO
+  ABONO
+  COMISION
+  INTERES
+  PAGO
+  MSI
+  DOMICILIACION
+
+  @@map("iadm_movement_type")
+}
+
+enum MovementSource {
+  PDF_EXTRACTED
+  MANUAL
+  API
+
+  @@map("iadm_movement_source")
+}
+
+enum Scope {
+  PERSONAL
+  NEGOCIO
+
+  @@map("iadm_scope")
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  ANNUAL
+
+  @@map("iadm_recurrence_frequency")
+}
+
+enum AlertSeverity {
+  RED
+  YELLOW
+  GREEN
+
+  @@map("iadm_alert_severity")
+}
+
+enum AlertType {
+  PAYMENT_DUE
+  SPENDING_SPIKE
+  CASH_FLOW_RISK
+  NEW_RECURRING
+  INSTALLMENT_END
+  ANOMALY
+
+  @@map("iadm_alert_type")
+}
+
+enum HealthLevel {
+  GREEN
+  YELLOW
+  RED
+
+  @@map("iadm_health_level")
+}
+
+// ──────────────────────────────────────────────
+// MULTI-TENANT
+// ──────────────────────────────────────────────
+
+model Tenant {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  type             UserType  @default(PERSONAL)
+  stripeCustomerId String?
+  planTier         String    @default("free")
+  maxUsers         Int       @default(3)
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  users            User[]
+  sharedMembers    SharedTenantMember[]
+  statements       BankStatement[]
+  movements        Movement[]
+  accounts         FinancialAccount[]
+  customCategories CustomCategory[]
+  recurringItems   RecurringItem[]
+  installments     Installment[]
+  invoices         Invoice[]
+  alerts           Alert[]
+  healthSnapshots  HealthSnapshot[]
+
+  @@map("iadm_tenant")
+}
+
+// ──────────────────────────────────────────────
+// AUTENTICACIÓN
+// ──────────────────────────────────────────────
+
+model User {
+  id               String    @id @default(cuid())
+  tenantId         String
+  email            String
+  passwordHash     String?
+  name             String
+  role             Role      @default(MIEMBRO)
+  avatarUrl        String?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  statements       BankStatement[]
+  createdMovements Movement[]           @relation("CreatedByUser")
+  corrections      MovementCorrection[]
+
+  @@unique([email, tenantId])
+  @@map("iadm_user")
+}
+
+model Token {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  type      String
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("iadm_token")
+}
+
+// ──────────────────────────────────────────────
+// INVITACIONES Y MEMBRESÍAS COMPARTIDAS
+// ──────────────────────────────────────────────
+
+model SharedTenantInvite {
+  id          String    @id @default(cuid())
+  tenantId    String
+  email       String
+  invitedBy   String
+  token       String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([tenantId, email])
+  @@map("iadm_shared_tenant_invite")
+}
+
+model SharedTenantMember {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      String    @default("VIEWER") // EDITOR, VIEWER
+  addedAt   DateTime  @default(now())
+  addedBy   String
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@map("iadm_shared_tenant_member")
+}
+
+// ──────────────────────────────────────────────
+// CUENTAS FINANCIERAS
+// ──────────────────────────────────────────────
+
+model FinancialAccount {
+  id             String   @id @default(cuid())
+  tenantId       String
+  name           String
+  institution    String
+  accountType    String
+  lastFourDigits String?
+  currency       String   @default("MXN")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  statements BankStatement[]
+  movements  Movement[]
+
+  @@map("iadm_financial_account")
+}
+
+// ──────────────────────────────────────────────
+// ESTADOS DE CUENTA
+// ──────────────────────────────────────────────
+
+model BankStatement {
+  id                    String          @id @default(cuid())
+  tenantId              String
+  accountId             String?
+  uploadedById          String
+
+  // Archivo
+  fileName              String
+  fileSize              Int
+  storagePath           String
+  mimeType              String          @default("application/pdf")
+  fileHash              String?
+
+  // Metadata extraída
+  institution           String?
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  cutoffDate            DateTime?
+  paymentDueDate        DateTime?
+  currentBalance        Decimal?        @db.Decimal(12, 2)
+  minimumPayment        Decimal?        @db.Decimal(12, 2)
+  noInterestPayment     Decimal?        @db.Decimal(12, 2)
+
+  // Procesamiento
+  status                StatementStatus @default(UPLOADED)
+  processingStartedAt   DateTime?
+  processingCompletedAt DateTime?
+  rawExtractedText      String?         @db.Text
+  aiInterpretation      Json?
+  errorMessage          String?
+  movementsCount        Int?
+
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id])
+  account     FinancialAccount?  @relation(fields: [accountId], references: [id])
+  uploadedBy  User               @relation(fields: [uploadedById], references: [id])
+  movements   Movement[]
+  logs        ProcessingLog[]
+
+  @@map("iadm_bank_statement")
+}
+
+model ProcessingLog {
+  id          String   @id @default(cuid())
+  statementId String
+  step        String
+  status      String
+  details     Json?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+
+  statement   BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@map("iadm_processing_log")
+}
+
+// ──────────────────────────────────────────────
+// MOVIMIENTOS
+// ──────────────────────────────────────────────
+
+model Movement {
+  id                  String         @id @default(cuid())
+  tenantId            String
+  statementId         String?
+  accountId           String?
+  createdById         String?
+
+  // Datos core
+  date                DateTime
+  description         String
+  originalDescription String?
+  amount              Decimal        @db.Decimal(12, 2)
+  type                MovementType
+  source              MovementSource @default(PDF_EXTRACTED)
+  scope               Scope          @default(PERSONAL)
+
+  // Clasificación
+  categoryId          String?
+  subcategoryId       String?
+  merchantName        String?
+
+  // Flags
+  isRecurring         Boolean        @default(false)
+  isSubscription      Boolean        @default(false)
+  isService           Boolean        @default(false)
+  isLoan              Boolean        @default(false)
+  isInstallment       Boolean        @default(false)
+  isDeductible        Boolean        @default(false)
+
+  // Confianza IA
+  confidenceScore     Float?
+  aiMetadata          Json?
+  userConfirmed       Boolean        @default(false)
+
+  notes               String?
+
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  tenant        Tenant             @relation(fields: [tenantId], references: [id])
+  statement     BankStatement?     @relation(fields: [statementId], references: [id])
+  account       FinancialAccount?  @relation(fields: [accountId], references: [id])
+  createdBy     User?              @relation("CreatedByUser", fields: [createdById], references: [id])
+  category      Category?          @relation(fields: [categoryId], references: [id])
+  subcategory   Subcategory?       @relation(fields: [subcategoryId], references: [id])
+  corrections   MovementCorrection[]
+  installment   Installment?       @relation(fields: [installmentId], references: [id])
+  installmentId String?
+  recurringItem RecurringItem?     @relation(fields: [recurringItemId], references: [id])
+  recurringItemId String?
+
+  @@map("iadm_movement")
+}
+
+model MovementCorrection {
+  id         String   @id @default(cuid())
+  movementId String
+  userId     String
+  field      String
+  oldValue   String?
+  newValue   String
+  createdAt  DateTime @default(now())
+
+  movement   Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@map("iadm_movement_correction")
+}
+
+// ──────────────────────────────────────────────
+// CATEGORÍAS
+// ──────────────────────────────────────────────
+
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  icon          String?
+  color         String?
+  type          String        @default("EGRESO")
+  isSystem      Boolean       @default(true)
+  sortOrder     Int           @default(0)
+
+  subcategories Subcategory[]
+  movements     Movement[]
+
+  @@map("iadm_category")
+}
+
+model Subcategory {
+  id         String   @id @default(cuid())
+  categoryId String
+  name       String
+  isSystem   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  movements  Movement[]
+
+  @@unique([categoryId, name])
+  @@map("iadm_subcategory")
+}
+
+model CustomCategory {
+  id       String  @id @default(cuid())
+  tenantId String
+  name     String
+  icon     String?
+  color    String?
+  parentId String?
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@map("iadm_custom_category")
+}
+
+// ──────────────────────────────────────────────
+// RECURRENTES
+// ──────────────────────────────────────────────
+
+model RecurringItem {
+  id               String              @id @default(cuid())
+  tenantId         String
+  name             String
+  merchantName     String?
+  estimatedAmount  Decimal             @db.Decimal(12, 2)
+  frequency        RecurrenceFrequency
+  scope            Scope               @default(PERSONAL)
+  categoryId       String?
+  isSubscription   Boolean             @default(false)
+  isService        Boolean             @default(false)
+  nextExpectedDate DateTime?
+  lastDetectedDate DateTime?
+  isActive         Boolean             @default(true)
+  autoDetected     Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  movements Movement[]
+
+  @@map("iadm_recurring_item")
+}
+
+// ──────────────────────────────────────────────
+// MENSUALIDADES (MSI / PRÉSTAMOS)
+// ──────────────────────────────────────────────
+
+model Installment {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  description           String
+  merchantName          String?
+  totalAmount           Decimal  @db.Decimal(12, 2)
+  monthlyAmount         Decimal  @db.Decimal(12, 2)
+  totalInstallments     Int
+  paidInstallments      Int      @default(0)
+  remainingInstallments Int
+  startDate             DateTime
+  estimatedEndDate      DateTime
+  isLoan                Boolean  @default(false)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  movements Movement[]
+
+  @@map("iadm_installment")
+}
+
+// ──────────────────────────────────────────────
+// FACTURAS
+// ──────────────────────────────────────────────
+
+model Invoice {
+  id          String    @id @default(cuid())
+  tenantId    String
+
+  date        DateTime
+  vendor      String    // Nombre del comercio (a quién le compraste / a quién le vendiste)
+  description String?   // Descripción adicional
+  amount      Decimal   @db.Decimal(12, 2)
+
+  categoryId  String?   // Categoría de gasto/ingreso
+  isPaid      Boolean   @default(false)
+  dueDate     DateTime?
+
+  scope       Scope     @default(PERSONAL)
+
+  notes       String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@map("iadm_invoice")
+}
+
+// ──────────────────────────────────────────────
+// ALERTAS
+// ──────────────────────────────────────────────
+
+model Alert {
+  id          String        @id @default(cuid())
+  tenantId    String
+  type        AlertType
+  severity    AlertSeverity
+  title       String
+  message     String
+  data        Json?
+  isRead      Boolean       @default(false)
+  isDismissed Boolean       @default(false)
+  expiresAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+
+  @@map("iadm_alert")
+}
+
+// ──────────────────────────────────────────────
+// SALUD FINANCIERA
+// ──────────────────────────────────────────────
+
+model HealthSnapshot {
+  id               String      @id @default(cuid())
+  tenantId         String
+  month            Int
+  year             Int
+
+  totalIncome      Decimal     @db.Decimal(12, 2)
+  totalExpenses    Decimal     @db.Decimal(12, 2)
+  savingsRate      Float
+  debtToIncome     Float
+  upcomingPayments Decimal     @db.Decimal(12, 2)
+  overduePayments  Int
+  cashFlowScore    Float
+
+  level            HealthLevel
+  summary          String
+
+  createdAt        DateTime    @default(now())
+
+  tenant           Tenant      @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, month, year])
+  @@map("iadm_health_snapshot")
+}
