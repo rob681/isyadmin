@@ -3,7 +3,6 @@ const path = require("path");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@isyadmin/api", "@isyadmin/db", "@isyadmin/shared"],
-  serverExternalPackages: ["pdfjs-dist"],
   experimental: {
     outputFileTracingRoot: path.join(__dirname, "../../"),
     outputFileTracingIncludes: {
