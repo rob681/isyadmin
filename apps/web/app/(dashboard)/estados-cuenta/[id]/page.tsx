@@ -21,6 +21,8 @@ import {
   FileText,
   TrendingUp,
   TrendingDown,
+  Home,
+  Briefcase,
 } from "lucide-react";
 
 const PROCESSING_STATUSES = ["UPLOADED", "EXTRACTING", "INTERPRETING", "VALIDATING"];
@@ -54,7 +56,7 @@ export default function EstadoCuentaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [corrections, setCorrections] = useState<
-    Record<string, { categoryId: string | null; subcategoryId: string | null }>
+    Record<string, { categoryId: string | null; subcategoryId: string | null; scope?: string }>
   >({});
 
   const { data: statement, isLoading } = trpc.statement.getById.useQuery(
@@ -186,6 +188,13 @@ export default function EstadoCuentaDetailPage() {
             movementId,
             field: "subcategoryId",
             newValue: corr.subcategoryId ?? "",
+          });
+        }
+        if (corr.scope) {
+          results.push({
+            movementId,
+            field: "scope",
+            newValue: corr.scope,
           });
         }
         return results;
@@ -320,6 +329,9 @@ export default function EstadoCuentaDetailPage() {
                       Categoria
                     </th>
                     <th className="text-center p-3 font-medium text-muted-foreground">
+                      Ámbito
+                    </th>
+                    <th className="text-center p-3 font-medium text-muted-foreground">
                       Confianza
                     </th>
                   </tr>
@@ -433,6 +445,48 @@ export default function EstadoCuentaDetailPage() {
                                 </select>
                               )}
                             </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          {isConfirmed ? (
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${m.scope === "NEGOCIO" ? "bg-indigo-50 text-indigo-700" : ""}`}
+                            >
+                              {m.scope === "NEGOCIO" ? (
+                                <><Briefcase className="h-2.5 w-2.5 mr-0.5" />Negocio</>
+                              ) : (
+                                <><Home className="h-2.5 w-2.5 mr-0.5" />Personal</>
+                              )}
+                            </Badge>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentScope = corrections[m.id]?.scope ?? m.scope ?? "PERSONAL";
+                                const newScope = currentScope === "PERSONAL" ? "NEGOCIO" : "PERSONAL";
+                                setCorrections((prev) => ({
+                                  ...prev,
+                                  [m.id]: {
+                                    ...prev[m.id],
+                                    categoryId: prev[m.id]?.categoryId ?? null,
+                                    subcategoryId: prev[m.id]?.subcategoryId ?? null,
+                                    scope: newScope,
+                                  },
+                                }));
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                                (corrections[m.id]?.scope ?? m.scope ?? "PERSONAL") === "NEGOCIO"
+                                  ? "bg-indigo-100 text-indigo-700 border border-indigo-300"
+                                  : "bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+                              }`}
+                            >
+                              {(corrections[m.id]?.scope ?? m.scope ?? "PERSONAL") === "NEGOCIO" ? (
+                                <><Briefcase className="h-2.5 w-2.5" />Negocio</>
+                              ) : (
+                                <><Home className="h-2.5 w-2.5" />Personal</>
+                              )}
+                            </button>
                           )}
                         </td>
                         <td className="p-3 text-center">

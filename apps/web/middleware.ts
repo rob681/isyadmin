@@ -39,5 +39,8 @@ export const config = {
     "/alertas/:path*",
     "/configuracion/:path*",
     "/onboarding/:path*",
+    "/cuentas/:path*",
+    "/facturas/:path*",
+    "/reportes/:path*",
   ],
 };
