@@ -1,7 +1,7 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
   output        = "../../../apps/web/generated/prisma"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -9,9 +9,948 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ──────────────────────────────────────────────
-// ENUMS (prefixed to avoid collisions with IsyTask)
-// ──────────────────────────────────────────────
+model Tenant {
+  id               String               @id @default(cuid())
+  name             String
+  slug             String               @unique
+  type             UserType             @default(PERSONAL)
+  stripeCustomerId String?
+  planTier         String               @default("free")
+  maxUsers         Int                  @default(3)
+  isActive         Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  alerts           Alert[]
+  statements       BankStatement[]
+  customCategories CustomCategory[]
+  accounts         FinancialAccount[]
+  healthSnapshots  HealthSnapshot[]
+  installments     Installment[]
+  invoices         Invoice[]
+  movements        Movement[]
+  recurringItems   RecurringItem[]
+  sharedMembers    SharedTenantMember[]
+  users            User[]
+
+  @@map("iadm_tenant")
+}
+
+model User {
+  id               String               @id @default(cuid())
+  tenantId         String
+  email            String
+  passwordHash     String?
+  name             String
+  role             Role                 @default(MIEMBRO)
+  avatarUrl        String?
+  isActive         Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  statements       BankStatement[]
+  createdMovements Movement[]           @relation("CreatedByUser")
+  corrections      MovementCorrection[]
+  tenant           Tenant               @relation(fields: [tenantId], references: [id])
+
+  @@unique([email, tenantId])
+  @@map("iadm_user")
+}
+
+model Token {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  type      String
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("iadm_token")
+}
+
+model SharedTenantInvite {
+  id         String    @id @default(cuid())
+  tenantId   String
+  email      String
+  invitedBy  String
+  token      String    @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([tenantId, email])
+  @@map("iadm_shared_tenant_invite")
+}
+
+model SharedTenantMember {
+  id       String   @id @default(cuid())
+  tenantId String
+  userId   String
+  role     String   @default("VIEWER")
+  addedAt  DateTime @default(now())
+  addedBy  String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "iadm_shared_tenant_member_tenantid_fkey")
+
+  @@unique([tenantId, userId])
+  @@map("iadm_shared_tenant_member")
+}
+
+model FinancialAccount {
+  id               String          @id @default(cuid())
+  tenantId         String
+  name             String
+  institution      String
+  accountType      String          @default("DEBIT_CARD")
+  lastFourDigits   String?
+  currency         String          @default("MXN")
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  statements       BankStatement[]
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  movements        Movement[]      @relation("AccountMovements")
+  sourceMovements  Movement[]      @relation("SourceAccountMovements")
+
+  @@map("iadm_financial_account")
+}
+
+model BankStatement {
+  id                    String            @id @default(cuid())
+  tenantId              String
+  accountId             String?
+  uploadedById          String
+  fileName              String
+  fileSize              Int
+  storagePath           String
+  mimeType              String            @default("application/pdf")
+  fileHash              String?
+  institution           String?
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  cutoffDate            DateTime?
+  paymentDueDate        DateTime?
+  currentBalance        Decimal?          @db.Decimal(12, 2)
+  minimumPayment        Decimal?          @db.Decimal(12, 2)
+  noInterestPayment     Decimal?          @db.Decimal(12, 2)
+  status                StatementStatus   @default(UPLOADED)
+  processingStartedAt   DateTime?
+  processingCompletedAt DateTime?
+  rawExtractedText      String?
+  aiInterpretation      Json?
+  errorMessage          String?
+  movementsCount        Int?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  account               FinancialAccount? @relation(fields: [accountId], references: [id])
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  uploadedBy            User              @relation(fields: [uploadedById], references: [id])
+  movements             Movement[]
+  logs                  ProcessingLog[]
+
+  @@map("iadm_bank_statement")
+}
+
+model ProcessingLog {
+  id          String        @id @default(cuid())
+  statementId String
+  step        String
+  status      String
+  details     Json?
+  durationMs  Int?
+  createdAt   DateTime      @default(now())
+  statement   BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@map("iadm_processing_log")
+}
+
+model Movement {
+  id                  String               @id @default(cuid())
+  tenantId            String
+  statementId         String?
+  accountId           String?
+  sourceAccountId     String?
+  createdById         String?
+  date                DateTime
+  description         String
+  originalDescription String?
+  amount              Decimal              @db.Decimal(12, 2)
+  type                MovementType
+  source              MovementSource       @default(PDF_EXTRACTED)
+  scope               Scope                @default(PERSONAL)
+  categoryId          String?
+  subcategoryId       String?
+  merchantName        String?
+  isRecurring         Boolean              @default(false)
+  isSubscription      Boolean              @default(false)
+  isService           Boolean              @default(false)
+  isLoan              Boolean              @default(false)
+  isInstallment       Boolean              @default(false)
+  isInternalTransfer  Boolean              @default(false)
+  confidenceScore     Float?
+  aiMetadata          Json?
+  userConfirmed       Boolean              @default(false)
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  installmentId       String?
+  recurringItemId     String?
+  isDeductible        Boolean              @default(false)
+  account             FinancialAccount?    @relation("AccountMovements", fields: [accountId], references: [id])
+  sourceAccount       FinancialAccount?    @relation("SourceAccountMovements", fields: [sourceAccountId], references: [id])
+  category            Category?            @relation(fields: [categoryId], references: [id])
+  createdBy           User?                @relation("CreatedByUser", fields: [createdById], references: [id])
+  installment         Installment?         @relation(fields: [installmentId], references: [id])
+  recurringItem       RecurringItem?       @relation(fields: [recurringItemId], references: [id])
+  statement           BankStatement?       @relation(fields: [statementId], references: [id])
+  subcategory         Subcategory?         @relation(fields: [subcategoryId], references: [id])
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  corrections         MovementCorrection[]
+
+  @@map("iadm_movement")
+}
+
+model MovementCorrection {
+  id         String   @id @default(cuid())
+  movementId String
+  userId     String
+  field      String
+  oldValue   String?
+  newValue   String
+  createdAt  DateTime @default(now())
+  movement   Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@map("iadm_movement_correction")
+}
+
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  icon          String?
+  color         String?
+  type          String        @default("EGRESO")
+  isSystem      Boolean       @default(true)
+  sortOrder     Int           @default(0)
+  movements     Movement[]
+  subcategories Subcategory[]
+
+  @@map("iadm_category")
+}
+
+model Subcategory {
+  id         String     @id @default(cuid())
+  categoryId String
+  name       String
+  isSystem   Boolean    @default(true)
+  sortOrder  Int        @default(0)
+  movements  Movement[]
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, name])
+  @@map("iadm_subcategory")
+}
+
+model CustomCategory {
+  id       String  @id @default(cuid())
+  tenantId String
+  name     String
+  icon     String?
+  color    String?
+  parentId String?
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@map("iadm_custom_category")
+}
+
+model RecurringItem {
+  id               String              @id @default(cuid())
+  tenantId         String
+  name             String
+  merchantName     String?
+  estimatedAmount  Decimal             @db.Decimal(12, 2)
+  frequency        RecurrenceFrequency
+  scope            Scope               @default(PERSONAL)
+  categoryId       String?
+  isSubscription   Boolean             @default(false)
+  isService        Boolean             @default(false)
+  nextExpectedDate DateTime?
+  lastDetectedDate DateTime?
+  isActive         Boolean             @default(true)
+  autoDetected     Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  movements        Movement[]
+  tenant           Tenant              @relation(fields: [tenantId], references: [id])
+
+  @@map("iadm_recurring_item")
+}
+
+model Installment {
+  id                    String     @id @default(cuid())
+  tenantId              String
+  description           String
+  merchantName          String?
+  totalAmount           Decimal    @db.Decimal(12, 2)
+  monthlyAmount         Decimal    @db.Decimal(12, 2)
+  totalInstallments     Int
+  paidInstallments      Int        @default(0)
+  remainingInstallments Int
+  startDate             DateTime
+  estimatedEndDate      DateTime
+  isLoan                Boolean    @default(false)
+  isActive              Boolean    @default(true)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  tenant                Tenant     @relation(fields: [tenantId], references: [id])
+  movements             Movement[]
+
+  @@map("iadm_installment")
+}
+
+model Alert {
+  id          String        @id @default(cuid())
+  tenantId    String
+  type        AlertType
+  severity    AlertSeverity
+  title       String
+  message     String
+  data        Json?
+  isRead      Boolean       @default(false)
+  isDismissed Boolean       @default(false)
+  expiresAt   DateTime?
+  createdAt   DateTime      @default(now())
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+
+  @@map("iadm_alert")
+}
+
+model HealthSnapshot {
+  id               String      @id @default(cuid())
+  tenantId         String
+  month            Int
+  year             Int
+  totalIncome      Decimal     @db.Decimal(12, 2)
+  totalExpenses    Decimal     @db.Decimal(12, 2)
+  savingsRate      Float
+  debtToIncome     Float
+  upcomingPayments Decimal     @db.Decimal(12, 2)
+  overduePayments  Int
+  cashFlowScore    Float
+  level            HealthLevel
+  summary          String
+  createdAt        DateTime    @default(now())
+  tenant           Tenant      @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, month, year])
+  @@map("iadm_health_snapshot")
+}
+
+model Invoice {
+  id          String    @id @default(cuid())
+  tenantId    String
+  date        DateTime
+  vendor      String
+  amount      Decimal   @db.Decimal(12, 2)
+  categoryId  String?
+  description String?
+  isPaid      Boolean   @default(false)
+  dueDate     DateTime?
+  scope       Scope     @default(PERSONAL)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@map("iadm_invoice")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model agencies {
+  id               String            @id
+  name             String
+  slug             String            @unique
+  logoUrl          String?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime
+  billingEmail     String?
+  maxUsers         Int               @default(50)
+  planTier         String            @default("basic")
+  trialEndsAt      DateTime?
+  stripeCustomerId String?           @unique
+  logoWhiteUrl     String?
+  customAppName    String?
+  hideBranding     Boolean           @default(false)
+  recurring_tasks  recurring_tasks[]
+  services         services[]
+  subscriptions    subscriptions[]
+  task_templates   task_templates[]
+  tasks            tasks[]
+  users            users[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model client_profiles {
+  id                             String                           @id
+  userId                         String                           @unique
+  companyName                    String?
+  logoUrl                        String?
+  monthlyTaskLimit               Int                              @default(10)
+  revisionLimitPerTask           Int                              @default(3)
+  createdAt                      DateTime                         @default(now())
+  updatedAt                      DateTime
+  planDescription                String?
+  planName                       String                           @default("Básico")
+  users                          users                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client_response_metrics        client_response_metrics[]
+  client_service_access          client_service_access[]
+  colaborador_client_assignments colaborador_client_assignments[]
+  recurring_tasks                recurring_tasks[]
+  tasks                          tasks[]
+  whatsapp_contacts              whatsapp_contacts[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model client_response_metrics {
+  id                  String          @id
+  clientId            String
+  agencyId            String
+  avgApprovalDays     Float
+  avgResponseDays     Float
+  tasksAnalyzed       Int
+  slowestApprovalDays Float?
+  month               Int
+  year                Int
+  updatedAt           DateTime
+  client_profiles     client_profiles @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, month, year])
+  @@index([agencyId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model client_service_access {
+  id              String          @id
+  clientId        String
+  serviceId       String
+  createdAt       DateTime        @default(now())
+  client_profiles client_profiles @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  services        services        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, serviceId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model colaborador_client_assignments {
+  id                   String               @id
+  colaboradorId        String
+  clientId             String
+  assignedAt           DateTime             @default(now())
+  client_profiles      client_profiles      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  colaborador_profiles colaborador_profiles @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@unique([colaboradorId, clientId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model colaborador_profiles {
+  id                             String                           @id
+  userId                         String                           @unique
+  specialty                      String?
+  createdAt                      DateTime                         @default(now())
+  updatedAt                      DateTime
+  permissions                    Json                             @default("[]")
+  colaborador_client_assignments colaborador_client_assignments[]
+  users                          users                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  colaborador_velocity_metrics   colaborador_velocity_metrics[]
+  recurring_tasks                recurring_tasks[]
+  task_assignments               task_assignments[]
+  tasks                          tasks[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model colaborador_velocity_metrics {
+  id                   String               @id
+  colaboradorId        String
+  agencyId             String
+  avgCompletionDays    Float
+  tasksCompleted       Int
+  onTimeRate           Float
+  month                Int
+  year                 Int
+  updatedAt            DateTime
+  colaborador_profiles colaborador_profiles @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@unique([colaboradorId, month, year])
+  @@index([agencyId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model cross_app_events {
+  id              String              @id
+  sourceApp       Product
+  targetApp       Product
+  eventType       String
+  agencyId        String
+  status          CrossAppEventStatus @default(PENDING)
+  taskId          String?
+  isysocialPostId String?
+  payload         Json                @default("{}")
+  errorMessage    String?
+  processedAt     DateTime?
+  retryCount      Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  tasks           tasks?              @relation(fields: [taskId], references: [id])
+
+  @@index([agencyId, eventType])
+  @@index([isysocialPostId])
+  @@index([status, createdAt])
+  @@index([taskId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model cross_product_discounts {
+  id              String  @id
+  product1        Product
+  product2        Product
+  discountPercent Float   @default(10)
+  isActive        Boolean @default(true)
+
+  @@unique([product1, product2])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model expo_push_tokens {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  platform  String   @default("ios")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model notifications {
+  id         String              @id
+  userId     String
+  type       NotificationType
+  channel    NotificationChannel
+  title      String
+  body       String
+  taskId     String?
+  isRead     Boolean             @default(false)
+  sentAt     DateTime?
+  failReason String?
+  createdAt  DateTime            @default(now())
+  agencyId   String?
+  users      users               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, userId, isRead, createdAt])
+  @@index([userId, isRead, createdAt])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model platform_config {
+  id    String @id
+  key   String @unique
+  value Json
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model push_subscriptions {
+  id        String   @id
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model recurring_tasks {
+  id                   String                @id
+  clientId             String
+  serviceId            String
+  title                String
+  description          String?
+  category             TaskCategory          @default(NORMAL)
+  formData             Json?
+  recurrenceType       RecurrenceType
+  recurrenceDay        Int?
+  recurrenceTime       String                @default("09:00")
+  isActive             Boolean               @default(true)
+  lastRunAt            DateTime?
+  nextRunAt            DateTime?
+  createdById          String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime
+  colaboradorId        String?
+  agencyId             String
+  agencies             agencies              @relation(fields: [agencyId], references: [id])
+  client_profiles      client_profiles       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  colaborador_profiles colaborador_profiles? @relation(fields: [colaboradorId], references: [id])
+  users                users                 @relation(fields: [createdById], references: [id])
+  services             services              @relation(fields: [serviceId], references: [id])
+
+  @@index([agencyId, isActive])
+  @@index([isActive, nextRunAt])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model risk_assessments {
+  id                          String    @id
+  taskId                      String    @unique
+  agencyId                    String
+  riskScore                   Float
+  riskLevel                   RiskLevel @default(GREEN)
+  daysUntilDeadline           Int?
+  daysSinceLastClientResponse Int?
+  daysSinceLastUpdate         Int
+  assigneeActiveTaskCount     Int?
+  clientAvgApprovalDays       Float?
+  teamAvgCompletionDays       Float?
+  prediction                  String
+  suggestedAction             String?
+  analyzedAt                  DateTime  @default(now())
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime
+  tasks                       tasks     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, riskLevel])
+  @@index([riskLevel])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model service_form_fields {
+  id             String           @id
+  serviceId      String
+  fieldName      String
+  label          String
+  fieldType      FieldType
+  placeholder    String?
+  isRequired     Boolean          @default(false)
+  sortOrder      Int              @default(0)
+  options        Json?
+  validation     Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  services       services         @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  task_responses task_responses[]
+
+  @@unique([serviceId, fieldName])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model services {
+  id                    String                  @id
+  name                  String
+  description           String?
+  estimatedHours        Int
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime
+  slaHours              Int?
+  agentEnabled          Boolean                 @default(false)
+  agentInstructions     String?
+  agentModel            String?
+  agencyId              String
+  client_service_access client_service_access[]
+  recurring_tasks       recurring_tasks[]
+  service_form_fields   service_form_fields[]
+  agencies              agencies                @relation(fields: [agencyId], references: [id])
+  task_templates        task_templates[]
+  tasks                 tasks[]
+
+  @@unique([agencyId, name])
+  @@index([agencyId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model subscriptions {
+  id                   String    @id
+  agencyId             String
+  product              Product
+  planTier             String
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  status               String    @default("trial")
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  trialEndsAt          DateTime?
+  canceledAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime
+  agencies             agencies  @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, product])
+  @@index([agencyId])
+  @@index([product])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model system_config {
+  id    String @id
+  key   String @unique
+  value Json
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_assignments {
+  id                   String               @id
+  taskId               String
+  colaboradorId        String
+  role                 TaskAssignmentRole   @default(HELPER)
+  assignedAt           DateTime             @default(now())
+  assignedById         String?
+  colaborador_profiles colaborador_profiles @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tasks                tasks                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, colaboradorId])
+  @@index([colaboradorId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_attachments {
+  id            String   @id
+  taskId        String
+  fileName      String
+  fileSize      Int
+  mimeType      String
+  storagePath   String
+  fileUrl       String
+  uploadedById  String
+  isDeliverable Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  tasks         tasks    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_comments {
+  id         String   @id
+  taskId     String
+  authorId   String
+  content    String
+  isQuestion Boolean  @default(false)
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  users      users    @relation(fields: [authorId], references: [id])
+  tasks      tasks    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_responses {
+  id                  String              @id
+  taskId              String
+  fieldId             String
+  fieldName           String
+  value               Json?
+  skipped             Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime
+  service_form_fields service_form_fields @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  tasks               tasks               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, fieldId])
+  @@index([taskId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_status_log {
+  id          String      @id
+  taskId      String
+  fromStatus  TaskStatus?
+  toStatus    TaskStatus
+  changedById String
+  note        String?
+  createdAt   DateTime    @default(now())
+  users       users       @relation(fields: [changedById], references: [id])
+  tasks       tasks       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_templates {
+  id          String       @id
+  name        String
+  description String?
+  serviceId   String
+  category    TaskCategory @default(NORMAL)
+  formData    Json?
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime
+  agencyId    String
+  agencies    agencies     @relation(fields: [agencyId], references: [id])
+  services    services     @relation(fields: [serviceId], references: [id])
+
+  @@index([agencyId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tasks {
+  id                   String                @id
+  taskNumber           Int
+  clientId             String
+  serviceId            String
+  colaboradorId        String?
+  title                String
+  description          String?
+  category             TaskCategory
+  status               TaskStatus            @default(RECIBIDA)
+  estimatedHours       Int
+  extraHours           Int                   @default(0)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  dueAt                DateTime?
+  revisionsUsed        Int                   @default(0)
+  revisionsLimit       Int
+  formData             Json?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime
+  agencyId             String
+  isysocialPostId      String?
+  isysocialPostType    String?
+  cross_app_events     cross_app_events[]
+  risk_assessments     risk_assessments?
+  task_assignments     task_assignments[]
+  task_attachments     task_attachments[]
+  task_comments        task_comments[]
+  task_responses       task_responses[]
+  task_status_log      task_status_log[]
+  agencies             agencies              @relation(fields: [agencyId], references: [id])
+  client_profiles      client_profiles       @relation(fields: [clientId], references: [id])
+  colaborador_profiles colaborador_profiles? @relation(fields: [colaboradorId], references: [id])
+  services             services              @relation(fields: [serviceId], references: [id])
+  whatsapp_messages    whatsapp_messages[]
+
+  @@unique([agencyId, taskNumber])
+  @@index([agencyId, status])
+  @@index([clientId, status])
+  @@index([colaboradorId, status])
+  @@index([createdAt])
+  @@index([isysocialPostId])
+  @@index([status, category])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tokens {
+  id        String    @id
+  token     String    @unique
+  type      TokenType
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  users     users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token, type])
+  @@index([userId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model users {
+  id                   String                @id
+  email                String                @unique
+  passwordHash         String?
+  name                 String
+  phone                String?
+  avatarUrl            String?
+  role                 Role
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime
+  agencyId             String?
+  client_profiles      client_profiles?
+  colaborador_profiles colaborador_profiles?
+  expo_push_tokens     expo_push_tokens[]
+  notifications        notifications[]
+  push_subscriptions   push_subscriptions[]
+  recurring_tasks      recurring_tasks[]
+  task_comments        task_comments[]
+  task_status_log      task_status_log[]
+  tokens               tokens[]
+  agencies             agencies?             @relation(fields: [agencyId], references: [id])
+  video_comments       video_comments[]
+  whatsapp_contacts    whatsapp_contacts?
+
+  @@index([agencyId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model video_comments {
+  id              String   @id
+  mediaType       String
+  mediaId         String
+  authorId        String
+  content         String
+  timecodeSeconds Float?
+  isInternal      Boolean  @default(false)
+  isResolved      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  users           users    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([mediaId, timecodeSeconds])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model whatsapp_contacts {
+  id                String              @id
+  phone             String              @unique
+  userId            String?             @unique
+  clientId          String?
+  displayName       String?
+  isVerified        Boolean             @default(false)
+  isActive          Boolean             @default(true)
+  lastMessageAt     DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  client_profiles   client_profiles?    @relation(fields: [clientId], references: [id])
+  users             users?              @relation(fields: [userId], references: [id])
+  whatsapp_messages whatsapp_messages[]
+
+  @@index([clientId])
+  @@index([phone])
+  @@index([userId])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model whatsapp_messages {
+  id                String                @id
+  contactId         String
+  twilioSid         String?               @unique
+  direction         String                @default("inbound")
+  body              String
+  mediaUrl          String?
+  mediaType         String?
+  status            WhatsAppMessageStatus @default(RECEIVED)
+  matchedTaskId     String?
+  commentId         String?
+  aiConfidence      Float?
+  aiReasoning       String?
+  createdAt         DateTime              @default(now())
+  metaMessageId     String?               @unique
+  provider          String                @default("twilio")
+  whatsapp_contacts whatsapp_contacts     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tasks             tasks?                @relation(fields: [matchedTaskId], references: [id])
+
+  @@index([contactId, createdAt])
+  @@index([matchedTaskId])
+  @@index([provider])
+  @@index([status])
+}
 
 enum UserType {
   PERSONAL
@@ -106,440 +1045,105 @@ enum HealthLevel {
   @@map("iadm_health_level")
 }
 
-// ──────────────────────────────────────────────
-// MULTI-TENANT
-// ──────────────────────────────────────────────
-
-model Tenant {
-  id               String    @id @default(cuid())
-  name             String
-  slug             String    @unique
-  type             UserType  @default(PERSONAL)
-  stripeCustomerId String?
-  planTier         String    @default("free")
-  maxUsers         Int       @default(3)
-  isActive         Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  users            User[]
-  sharedMembers    SharedTenantMember[]
-  statements       BankStatement[]
-  movements        Movement[]
-  accounts         FinancialAccount[]
-  customCategories CustomCategory[]
-  recurringItems   RecurringItem[]
-  installments     Installment[]
-  invoices         Invoice[]
-  alerts           Alert[]
-  healthSnapshots  HealthSnapshot[]
-
-  @@map("iadm_tenant")
+enum CrossAppEventStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
 }
 
-// ──────────────────────────────────────────────
-// AUTENTICACIÓN
-// ──────────────────────────────────────────────
-
-model User {
-  id               String    @id @default(cuid())
-  tenantId         String
-  email            String
-  passwordHash     String?
-  name             String
-  role             Role      @default(MIEMBRO)
-  avatarUrl        String?
-  isActive         Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  tenant           Tenant    @relation(fields: [tenantId], references: [id])
-  statements       BankStatement[]
-  createdMovements Movement[]           @relation("CreatedByUser")
-  corrections      MovementCorrection[]
-
-  @@unique([email, tenantId])
-  @@map("iadm_user")
+enum FieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  SELECT
+  MULTISELECT
+  CHECKBOX
+  COLOR_PICKER
+  FILE
+  DATE
+  URL
 }
 
-model Token {
-  id        String    @id @default(cuid())
-  token     String    @unique
-  type      String
-  email     String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  @@map("iadm_token")
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  IN_APP
 }
 
-// ──────────────────────────────────────────────
-// INVITACIONES Y MEMBRESÍAS COMPARTIDAS
-// ──────────────────────────────────────────────
-
-model SharedTenantInvite {
-  id          String    @id @default(cuid())
-  tenantId    String
-  email       String
-  invitedBy   String
-  token       String    @unique
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime  @default(now())
-
-  @@unique([tenantId, email])
-  @@map("iadm_shared_tenant_invite")
+enum NotificationType {
+  TAREA_RECIBIDA
+  TAREA_EN_PROGRESO
+  TAREA_DUDA
+  TAREA_FINALIZADA
+  TAREA_CANCELADA
+  NUEVO_COMENTARIO
+  CAMBIO_SOLICITADO
+  TAREA_PENDIENTE_RECORDATORIO
+  TAREA_EN_REVISION
+  SLA_ALERTA
+  ISYSOCIAL_POST_RECHAZADO
+  ISYSOCIAL_POST_APROBADO
+  ISYSOCIAL_OAUTH_EXPIRADO
+  ISYSOCIAL_CONTENIDO_PUBLICADO
 }
 
-model SharedTenantMember {
-  id        String    @id @default(cuid())
-  tenantId  String
-  userId    String
-  role      String    @default("VIEWER") // EDITOR, VIEWER
-  addedAt   DateTime  @default(now())
-  addedBy   String
-
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, userId])
-  @@map("iadm_shared_tenant_member")
+enum Product {
+  ISYTASK
+  ISYSOCIAL
 }
 
-// ──────────────────────────────────────────────
-// CUENTAS FINANCIERAS
-// ──────────────────────────────────────────────
-
-model FinancialAccount {
-  id             String   @id @default(cuid())
-  tenantId       String
-  name           String
-  institution    String
-  accountType    String
-  lastFourDigits String?
-  currency       String   @default("MXN")
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-
-  tenant     Tenant          @relation(fields: [tenantId], references: [id])
-  statements BankStatement[]
-  movements  Movement[]
-
-  @@map("iadm_financial_account")
+enum RecurrenceType {
+  DAILY
+  WEEKLY
+  MONTHLY
 }
 
-// ──────────────────────────────────────────────
-// ESTADOS DE CUENTA
-// ──────────────────────────────────────────────
-
-model BankStatement {
-  id                    String          @id @default(cuid())
-  tenantId              String
-  accountId             String?
-  uploadedById          String
-
-  // Archivo
-  fileName              String
-  fileSize              Int
-  storagePath           String
-  mimeType              String          @default("application/pdf")
-  fileHash              String?
-
-  // Metadata extraída
-  institution           String?
-  periodStart           DateTime?
-  periodEnd             DateTime?
-  cutoffDate            DateTime?
-  paymentDueDate        DateTime?
-  currentBalance        Decimal?        @db.Decimal(12, 2)
-  minimumPayment        Decimal?        @db.Decimal(12, 2)
-  noInterestPayment     Decimal?        @db.Decimal(12, 2)
-
-  // Procesamiento
-  status                StatementStatus @default(UPLOADED)
-  processingStartedAt   DateTime?
-  processingCompletedAt DateTime?
-  rawExtractedText      String?         @db.Text
-  aiInterpretation      Json?
-  errorMessage          String?
-  movementsCount        Int?
-
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-
-  tenant      Tenant             @relation(fields: [tenantId], references: [id])
-  account     FinancialAccount?  @relation(fields: [accountId], references: [id])
-  uploadedBy  User               @relation(fields: [uploadedById], references: [id])
-  movements   Movement[]
-  logs        ProcessingLog[]
-
-  @@map("iadm_bank_statement")
+enum RiskLevel {
+  GREEN
+  YELLOW
+  RED
 }
 
-model ProcessingLog {
-  id          String   @id @default(cuid())
-  statementId String
-  step        String
-  status      String
-  details     Json?
-  durationMs  Int?
-  createdAt   DateTime @default(now())
-
-  statement   BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
-
-  @@map("iadm_processing_log")
+enum TaskAssignmentRole {
+  PRIMARY
+  HELPER
 }
 
-// ──────────────────────────────────────────────
-// MOVIMIENTOS
-// ──────────────────────────────────────────────
-
-model Movement {
-  id                  String         @id @default(cuid())
-  tenantId            String
-  statementId         String?
-  accountId           String?
-  createdById         String?
-
-  // Datos core
-  date                DateTime
-  description         String
-  originalDescription String?
-  amount              Decimal        @db.Decimal(12, 2)
-  type                MovementType
-  source              MovementSource @default(PDF_EXTRACTED)
-  scope               Scope          @default(PERSONAL)
-
-  // Clasificación
-  categoryId          String?
-  subcategoryId       String?
-  merchantName        String?
-
-  // Flags
-  isRecurring         Boolean        @default(false)
-  isSubscription      Boolean        @default(false)
-  isService           Boolean        @default(false)
-  isLoan              Boolean        @default(false)
-  isInstallment       Boolean        @default(false)
-  isDeductible        Boolean        @default(false)
-
-  // Confianza IA
-  confidenceScore     Float?
-  aiMetadata          Json?
-  userConfirmed       Boolean        @default(false)
-
-  notes               String?
-
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-
-  tenant        Tenant             @relation(fields: [tenantId], references: [id])
-  statement     BankStatement?     @relation(fields: [statementId], references: [id])
-  account       FinancialAccount?  @relation(fields: [accountId], references: [id])
-  createdBy     User?              @relation("CreatedByUser", fields: [createdById], references: [id])
-  category      Category?          @relation(fields: [categoryId], references: [id])
-  subcategory   Subcategory?       @relation(fields: [subcategoryId], references: [id])
-  corrections   MovementCorrection[]
-  installment   Installment?       @relation(fields: [installmentId], references: [id])
-  installmentId String?
-  recurringItem RecurringItem?     @relation(fields: [recurringItemId], references: [id])
-  recurringItemId String?
-
-  @@map("iadm_movement")
+enum TaskCategory {
+  URGENTE
+  NORMAL
+  LARGO_PLAZO
 }
 
-model MovementCorrection {
-  id         String   @id @default(cuid())
-  movementId String
-  userId     String
-  field      String
-  oldValue   String?
-  newValue   String
-  createdAt  DateTime @default(now())
-
-  movement   Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id])
-
-  @@map("iadm_movement_correction")
+enum TaskStatus {
+  RECIBIDA
+  EN_PROGRESO
+  DUDA
+  FINALIZADA
+  CANCELADA
+  REVISION
 }
 
-// ──────────────────────────────────────────────
-// CATEGORÍAS
-// ──────────────────────────────────────────────
-
-model Category {
-  id            String        @id @default(cuid())
-  name          String        @unique
-  icon          String?
-  color         String?
-  type          String        @default("EGRESO")
-  isSystem      Boolean       @default(true)
-  sortOrder     Int           @default(0)
-
-  subcategories Subcategory[]
-  movements     Movement[]
-
-  @@map("iadm_category")
+enum TokenType {
+  INVITATION
+  PASSWORD_RESET
 }
 
-model Subcategory {
-  id         String   @id @default(cuid())
-  categoryId String
-  name       String
-  isSystem   Boolean  @default(true)
-  sortOrder  Int      @default(0)
-
-  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  movements  Movement[]
-
-  @@unique([categoryId, name])
-  @@map("iadm_subcategory")
+enum WhatsAppMessageStatus {
+  RECEIVED
+  MATCHED
+  COMMENT_CREATED
+  UNMATCHED
+  FAILED
 }
 
-model CustomCategory {
-  id       String  @id @default(cuid())
-  tenantId String
-  name     String
-  icon     String?
-  color    String?
-  parentId String?
+enum AccountType {
+  DEBIT_CARD
+  CREDIT_CARD
+  SAVINGS
+  CHECKING
+  CASH
 
-  tenant   Tenant  @relation(fields: [tenantId], references: [id])
-
-  @@map("iadm_custom_category")
-}
-
-// ──────────────────────────────────────────────
-// RECURRENTES
-// ──────────────────────────────────────────────
-
-model RecurringItem {
-  id               String              @id @default(cuid())
-  tenantId         String
-  name             String
-  merchantName     String?
-  estimatedAmount  Decimal             @db.Decimal(12, 2)
-  frequency        RecurrenceFrequency
-  scope            Scope               @default(PERSONAL)
-  categoryId       String?
-  isSubscription   Boolean             @default(false)
-  isService        Boolean             @default(false)
-  nextExpectedDate DateTime?
-  lastDetectedDate DateTime?
-  isActive         Boolean             @default(true)
-  autoDetected     Boolean             @default(true)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-
-  tenant    Tenant     @relation(fields: [tenantId], references: [id])
-  movements Movement[]
-
-  @@map("iadm_recurring_item")
-}
-
-// ──────────────────────────────────────────────
-// MENSUALIDADES (MSI / PRÉSTAMOS)
-// ──────────────────────────────────────────────
-
-model Installment {
-  id                    String   @id @default(cuid())
-  tenantId              String
-  description           String
-  merchantName          String?
-  totalAmount           Decimal  @db.Decimal(12, 2)
-  monthlyAmount         Decimal  @db.Decimal(12, 2)
-  totalInstallments     Int
-  paidInstallments      Int      @default(0)
-  remainingInstallments Int
-  startDate             DateTime
-  estimatedEndDate      DateTime
-  isLoan                Boolean  @default(false)
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  tenant    Tenant     @relation(fields: [tenantId], references: [id])
-  movements Movement[]
-
-  @@map("iadm_installment")
-}
-
-// ──────────────────────────────────────────────
-// FACTURAS
-// ──────────────────────────────────────────────
-
-model Invoice {
-  id          String    @id @default(cuid())
-  tenantId    String
-
-  date        DateTime
-  vendor      String    // Nombre del comercio (a quién le compraste / a quién le vendiste)
-  description String?   // Descripción adicional
-  amount      Decimal   @db.Decimal(12, 2)
-
-  categoryId  String?   // Categoría de gasto/ingreso
-  isPaid      Boolean   @default(false)
-  dueDate     DateTime?
-
-  scope       Scope     @default(PERSONAL)
-
-  notes       String?
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-
-  @@map("iadm_invoice")
-}
-
-// ──────────────────────────────────────────────
-// ALERTAS
-// ──────────────────────────────────────────────
-
-model Alert {
-  id          String        @id @default(cuid())
-  tenantId    String
-  type        AlertType
-  severity    AlertSeverity
-  title       String
-  message     String
-  data        Json?
-  isRead      Boolean       @default(false)
-  isDismissed Boolean       @default(false)
-  expiresAt   DateTime?
-  createdAt   DateTime      @default(now())
-
-  tenant      Tenant        @relation(fields: [tenantId], references: [id])
-
-  @@map("iadm_alert")
-}
-
-// ──────────────────────────────────────────────
-// SALUD FINANCIERA
-// ──────────────────────────────────────────────
-
-model HealthSnapshot {
-  id               String      @id @default(cuid())
-  tenantId         String
-  month            Int
-  year             Int
-
-  totalIncome      Decimal     @db.Decimal(12, 2)
-  totalExpenses    Decimal     @db.Decimal(12, 2)
-  savingsRate      Float
-  debtToIncome     Float
-  upcomingPayments Decimal     @db.Decimal(12, 2)
-  overduePayments  Int
-  cashFlowScore    Float
-
-  level            HealthLevel
-  summary          String
-
-  createdAt        DateTime    @default(now())
-
-  tenant           Tenant      @relation(fields: [tenantId], references: [id])
-
-  @@unique([tenantId, month, year])
-  @@map("iadm_health_snapshot")
+  @@map("iadm_account_type")
 }
