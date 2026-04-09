@@ -156,6 +156,31 @@ export async function runStatementPipeline(
     Date.now() - interpretStart
   );
 
+  // ─── CHECK FOR DUPLICATES ──────────────────────────────
+  // Detect if this statement already exists (same bank, same period)
+  if (interpreted.institution && interpreted.periodStart && interpreted.periodEnd) {
+    const existingStatement = await db.bankStatement.findFirst({
+      where: {
+        tenantId,
+        id: { not: statementId }, // Exclude current statement
+        institution: interpreted.institution,
+        periodStart: new Date(interpreted.periodStart),
+        periodEnd: new Date(interpreted.periodEnd),
+        status: { in: ["REVIEW", "CONFIRMED"] }, // Only check non-failed statements
+      },
+    });
+
+    if (existingStatement) {
+      await failStatement(
+        statementId,
+        "duplicate_check",
+        `Ya existe un estado de cuenta de ${interpreted.institution} para el período ${new Date(interpreted.periodStart).toLocaleDateString("es-MX")} a ${new Date(interpreted.periodEnd).toLocaleDateString("es-MX")}.`,
+        { existingStatementId: existingStatement.id }
+      );
+      return;
+    }
+  }
+
   // ─── STEP 3: CLASSIFY MOVEMENTS ─────────────────────────
   await db.bankStatement.update({
     where: { id: statementId },
