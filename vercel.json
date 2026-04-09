@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/reprocess-stuck",
+      "schedule": "*/1 * * * *"
+    }
+  ]
+}
