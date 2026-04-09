@@ -188,7 +188,22 @@ export const statementRouter = router({
         });
       }
 
-      await runStatementPipeline(input.statementId, tenantId);
+      // Reset status so the UI sees it as re-processing
+      await db.bankStatement.update({
+        where: { id: input.statementId },
+        data: {
+          status: "UPLOADED",
+          errorMessage: null,
+          processingStartedAt: null,
+          processingCompletedAt: null,
+        },
+      });
+
+      // Fire and forget — don't await so we don't hit Vercel's 60s timeout
+      runStatementPipeline(input.statementId, tenantId).catch((err) => {
+        console.error("[Pipeline Retry Error]", err);
+      });
+
       return { success: true };
     }),
 

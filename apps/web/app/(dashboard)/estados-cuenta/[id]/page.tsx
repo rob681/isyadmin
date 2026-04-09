@@ -59,11 +59,13 @@ export default function EstadoCuentaDetailPage() {
     Record<string, { categoryId: string | null; subcategoryId: string | null; scope?: string }>
   >({});
 
-  const { data: statement, isLoading } = trpc.statement.getById.useQuery(
+  const { data: statement, isLoading, refetch } = trpc.statement.getById.useQuery(
     { id },
     {
+      retry: 1,
       refetchInterval: (data) => {
-        if (!data) return 2000;
+        // Only poll if the statement exists AND is still processing
+        if (!data) return false;
         return PROCESSING_STATUSES.includes(data.status) ? 2000 : false;
       },
     }
@@ -74,6 +76,13 @@ export default function EstadoCuentaDetailPage() {
   const confirmMutation = trpc.statement.confirm.useMutation({
     onSuccess: () => {
       router.refresh();
+    },
+  });
+
+  const processMutation = trpc.statement.process.useMutation({
+    onSuccess: () => {
+      // Brief delay then refetch — pipeline updates status to EXTRACTING asynchronously
+      setTimeout(() => refetch(), 1000);
     },
   });
 
@@ -156,11 +165,23 @@ export default function EstadoCuentaDetailPage() {
             </div>
             <h2 className="text-lg font-semibold">Error al procesar</h2>
             <p className="text-sm text-muted-foreground">
-              {statement.errorMessage ?? "Ocurrio un error inesperado."}
+              {statement.errorMessage ?? "Ocurrió un error inesperado."}
             </p>
-            <Button variant="outline" onClick={() => router.push("/estados-cuenta")}>
-              Volver a estados de cuenta
-            </Button>
+            <div className="flex gap-3 justify-center">
+              <Button
+                onClick={() => processMutation.mutate({ statementId: id })}
+                disabled={processMutation.isLoading}
+              >
+                {processMutation.isLoading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Reprocesando...</>
+                ) : (
+                  <><Sparkles className="h-4 w-4 mr-2" /> Reintentar</>
+                )}
+              </Button>
+              <Button variant="outline" onClick={() => router.push("/estados-cuenta")}>
+                Volver
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
