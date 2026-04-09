@@ -18,57 +18,69 @@ export default function EstadosCuentaPage() {
   const [uploadError, setUploadError] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("");
 
-  const { data: statements, isLoading } = trpc.statement.list.useQuery();
+  const { data: statements, isLoading, refetch: refetchStatements } = trpc.statement.list.useQuery();
   const accounts = trpc.account.list.useQuery();
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
+    if (!acceptedFiles || acceptedFiles.length === 0) return;
 
-    if (file.type !== "application/pdf") {
-      setUploadError("Solo se aceptan archivos PDF");
-      return;
-    }
-    if (file.size > 20 * 1024 * 1024) {
-      setUploadError("El archivo no debe superar 20 MB");
-      return;
+    // Validate all files
+    for (const file of acceptedFiles) {
+      if (file.type !== "application/pdf") {
+        setUploadError("Solo se aceptan archivos PDF");
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        setUploadError("El archivo no debe superar 20 MB");
+        return;
+      }
     }
 
     setUploading(true);
     setUploadError("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      if (selectedAccountId) {
-        formData.append("accountId", selectedAccountId);
-      }
+      const uploadPromises = acceptedFiles.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        if (selectedAccountId) {
+          formData.append("accountId", selectedAccountId);
+        }
 
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json();
+          throw new Error(`${file.name}: ${err.error || "Error al subir"}`);
+        }
+
+        const { statementId } = await uploadRes.json();
+        return { fileName: file.name, statementId };
       });
 
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.error || "Error al subir archivo");
+      const results = await Promise.all(uploadPromises);
+
+      // If single file, navigate to detail page
+      if (results.length === 1) {
+        router.push(`/estados-cuenta/${results[0].statementId}`);
+      } else {
+        // Multiple files: refresh list and show success
+        refetchStatements();
       }
-
-      const { statementId } = await uploadRes.json();
-
-      // Navigate directly to the processing/review page
-      router.push(`/estados-cuenta/${statementId}`);
     } catch (err: any) {
-      setUploadError(err.message || "Error al subir el archivo");
+      setUploadError(err.message || "Error al subir archivos");
     } finally {
       setUploading(false);
     }
-  }, [router]);
+  }, [router, refetchStatements]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "application/pdf": [".pdf"] },
-    maxFiles: 1,
+    maxFiles: 20,
     disabled: uploading,
   });
 
@@ -100,16 +112,16 @@ export default function EstadosCuentaPage() {
                 <Upload className="h-8 w-8 text-muted-foreground" />
               </div>
               {uploading ? (
-                <p className="text-sm text-muted-foreground">Subiendo archivo...</p>
+                <p className="text-sm text-muted-foreground">Subiendo archivos...</p>
               ) : isDragActive ? (
-                <p className="text-sm text-primary font-medium">Suelta tu PDF aquí</p>
+                <p className="text-sm text-primary font-medium">Suelta tus PDFs aquí</p>
               ) : (
                 <>
-                  <p className="text-sm font-medium">Arrastra tu PDF aquí</p>
-                  <p className="text-xs text-muted-foreground">o haz clic para seleccionar</p>
+                  <p className="text-sm font-medium">Arrastra tus PDFs aquí</p>
+                  <p className="text-xs text-muted-foreground">o haz clic para seleccionar (máximo 20)</p>
                 </>
               )}
-              <p className="text-xs text-muted-foreground">Formatos: PDF | Máximo: 20 MB</p>
+              <p className="text-xs text-muted-foreground">Formatos: PDF | Máximo: 20 MB por archivo</p>
             </div>
           </div>
 
